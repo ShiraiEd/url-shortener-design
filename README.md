@@ -4,7 +4,7 @@ A high-throughput URL shortening service. Converts long URLs into short codes an
 
 ## Stack
 
-- **Nginx** — load balancer, rate limiting, SSL termination
-- **App Servers** — 3 stateless instances (round robin)
-- **Redis** — cache layer, click counters
-- **Postgres** — source of truth (Primary + Replica)
+- **Nginx** — load balancer, rate limiting
+- **App Servers** — 2 or more stateless instances (round robin)
+- **Redis** — cache layer, click counters, sentinel
+- **Postgres** — source of truth (Primary + Replica). PgBouncer
