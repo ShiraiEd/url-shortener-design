@@ -2,6 +2,7 @@ use rapina::prelude::*;
 use rapina::database::{Db, DbError};
 use rapina::sea_orm::{ActiveModelTrait, EntityTrait, IntoActiveModel, Set, ColumnTrait, QueryFilter};
 use base62;
+use rapina::response::BoxBody;
 
 use crate::entity::Urls;
 use crate::entity::urls::{ActiveModel, Model};
@@ -16,18 +17,29 @@ pub async fn list_urlss(db: Db) -> Result<Json<Vec<Model>>> {
     Ok(Json(items))
 }
 
+#[get("/:code", group = "/api/v1/shorten")]
 #[public]
-#[get("/:short_code", group = "/api/v1/shorten")]
 #[errors(UrlsError)]
-pub async fn redirect_url(db: Db, short_code: Path<String>) -> Result<Json<Model>> {
-    let code = short_code.into_inner();
+pub async fn redirect(db: Db, code: Path<String>) -> Result<http::Response<BoxBody>> {
+    let code = code.into_inner();
     let item = Urls::find()
         .filter(crate::entity::urls::Column::ShortCode.eq(&code))
         .one(db.conn())
         .await
         .map_err(DbError)?
-        .ok_or_else(|| Error::not_found(format!("Code {} not found", code)))?;
-    Ok(Json(item))
+        .ok_or_else(|| Error::not_found(format!("URL with code '{}' not found", code)))?;
+
+    let mut active: ActiveModel = item.clone().into_active_model();
+    active.click_count = Set(item.click_count + 1);
+    let _ = active.update(db.conn()).await.map_err(DbError)?;
+
+    let response = http::Response::builder()
+        .status(http::StatusCode::MOVED_PERMANENTLY)
+        .header("Location", &item.long_url)
+        .body(BoxBody::default())
+        .unwrap();
+
+    Ok(response)
 }
 #[public]
 #[post("/", group = "/api/v1/shorten")]
