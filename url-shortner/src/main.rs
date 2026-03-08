@@ -3,7 +3,7 @@ use rapina::prelude::*;
 use rapina::schemars;
 use rapina::database::DatabaseConfig;
 
-use crate::urlss::handlers::{create_urls, list_urlss};
+use crate::urlss::handlers::{create_urls, list_urlss, redirect_url};
 
 mod entity;
 mod migrations;
@@ -41,7 +41,8 @@ async fn main() -> std::io::Result<()> {
         .get("/", hello)
         .get("/health", health)
         .get("/api/v1/shorten", list_urlss)
-        .post("/api/v1/shorten", create_urls);
+        .post("/api/v1/shorten", create_urls)
+        .get("/api/v1/shorten/:short_code", redirect_url);
 
     Rapina::new()
         .with_tracing(TracingConfig::new())

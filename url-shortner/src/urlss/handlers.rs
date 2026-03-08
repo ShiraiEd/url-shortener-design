@@ -1,6 +1,6 @@
 use rapina::prelude::*;
 use rapina::database::{Db, DbError};
-use rapina::sea_orm::{ActiveModelTrait, EntityTrait, IntoActiveModel, Set};
+use rapina::sea_orm::{ActiveModelTrait, EntityTrait, IntoActiveModel, Set, ColumnTrait, QueryFilter};
 use base62;
 
 use crate::entity::Urls;
@@ -17,14 +17,16 @@ pub async fn list_urlss(db: Db) -> Result<Json<Vec<Model>>> {
 }
 
 #[public]
-#[get("/:short_code")]
+#[get("/:short_code", group = "/api/v1/shorten")]
 #[errors(UrlsError)]
 pub async fn redirect_url(db: Db, short_code: Path<String>) -> Result<Json<Model>> {
-    let item = Urls::find_by_id(base62::decode(short_code).unwrap() as i32)
+    let code = short_code.into_inner();
+    let item = Urls::find()
+        .filter(crate::entity::urls::Column::ShortCode.eq(&code))
         .one(db.conn())
         .await
         .map_err(DbError)?
-        .ok_or_else(|| Error::not_found(format!("Code {} not found", short_code)))?;
+        .ok_or_else(|| Error::not_found(format!("Code {} not found", code)))?;
     Ok(Json(item))
 }
 #[public]
