@@ -1,9 +1,9 @@
+use rapina::database::DatabaseConfig;
 use rapina::middleware::RequestLogMiddleware;
 use rapina::prelude::*;
 use rapina::schemars;
-use rapina::database::DatabaseConfig;
 
-use crate::urlss::handlers::{create_urls, list_urlss, redirect, delete_code};
+use crate::urlss::handlers::{create_urls, delete_code, list_urlss, redirect};
 
 mod entity;
 mod migrations;
@@ -48,7 +48,7 @@ async fn main() -> std::io::Result<()> {
     Rapina::new()
         .with_tracing(TracingConfig::new())
         .middleware(RequestLogMiddleware::new())
-        .with_database(DatabaseConfig::new("sqlite://todos.db?mode=rwc"))
+        .with_database(DatabaseConfig::new("sqlite://urls.db?mode=rwc"))
         .await?
         .run_migrations::<migrations::Migrator>()
         .await?
