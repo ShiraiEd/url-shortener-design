@@ -7,7 +7,7 @@ use rapina::response::BoxBody;
 use crate::entity::Urls;
 use crate::entity::urls::{ActiveModel, Model};
 
-use super::dto::{CreateUrls, UpdateUrls};
+use super::dto::CreateUrls;
 use super::error::UrlsError;
 
 #[get("/", group = "/api/v1/shorten")]
@@ -44,14 +44,14 @@ pub async fn redirect(db: Db, code: Path<String>) -> Result<http::Response<BoxBo
 #[public]
 #[post("/", group = "/api/v1/shorten")]
 #[errors(UrlsError)]
-pub async fn create_urls(db: Db, body: Json<CreateUrls>) -> Result<Json<Model>> {
-    let input = body.into_inner();
+pub async fn create_urls(db: Db, body: Validated<Json<CreateUrls>>) -> Result<Json<serde_json::Value>> {
+    let input = body.into_inner().into_inner();
     let item = ActiveModel {
         short_code: Set(String::new()),
         long_url: Set(input.long_url),
-        created_at: Set(input.created_at),
-        expires_at: Set(input.expires_at),
-        click_count: Set(input.click_count),
+        created_at: Set(rapina::sea_orm::prelude::DateTimeUtc::from(std::time::SystemTime::now() + std::time::Duration::from_secs(9 * 3600))),
+        expires_at: Set(rapina::sea_orm::prelude::DateTimeUtc::from(std::time::SystemTime::now() + std::time::Duration::from_hours(24 * 365))),
+        click_count: Set(0),
         ..Default::default()
     };
     let inserted = item.insert(db.conn()).await.map_err(DbError)?;
@@ -59,51 +59,23 @@ pub async fn create_urls(db: Db, body: Json<CreateUrls>) -> Result<Json<Model>> 
     let mut active: ActiveModel = inserted.into_active_model();
     active.short_code = Set(base62::encode(active.id.clone().unwrap() as u128 + 6767u128));
     let result = active.update(db.conn()).await.map_err(DbError)?;
-    Ok(Json(result))
+    Ok(Json(serde_json::json!({"short_code": result.short_code, "long_url": result.long_url})))
 }
 
-#[put("/urlss/:id")]
+
+#[delete("/:short_code", group = "/api/v1/shorten")]
+#[public]
 #[errors(UrlsError)]
-pub async fn update_urls(db: Db, id: Path<i32>, body: Json<UpdateUrls>) -> Result<Json<Model>> {
-    let id = id.into_inner();
-    let item = Urls::find_by_id(id)
-        .one(db.conn())
-        .await
-        .map_err(DbError)?
-        .ok_or_else(|| Error::not_found(format!("Urls {} not found", id)))?;
-
-    let update = body.into_inner();
-    let mut active: ActiveModel = item.into_active_model();
-    if let Some(val) = update.short_code {
-        active.short_code = Set(val);
-    }
-    if let Some(val) = update.long_url {
-        active.long_url = Set(val);
-    }
-    if let Some(val) = update.created_at {
-        active.created_at = Set(val);
-    }
-    if let Some(val) = update.expires_at {
-        active.expires_at = Set(val);
-    }
-    if let Some(val) = update.click_count {
-        active.click_count = Set(val);
-    }
-
-    let result = active.update(db.conn()).await.map_err(DbError)?;
-    Ok(Json(result))
-}
-
-#[delete("/urlss/:id")]
-#[errors(UrlsError)]
-pub async fn delete_urls(db: Db, id: Path<i32>) -> Result<Json<serde_json::Value>> {
-    let id = id.into_inner();
-    let result = Urls::delete_by_id(id)
+pub async fn delete_code(db: Db, code: Path<String>) -> Result<Json<serde_json::Value>> {
+    let code = code.into_inner();
+    let result = Urls::delete_many()
+        .filter(crate::entity::urls::Column::ShortCode.eq(&code))
         .exec(db.conn())
         .await
         .map_err(DbError)?;
+    
     if result.rows_affected == 0 {
-        return Err(Error::not_found(format!("Urls {} not found", id)));
+        return Err(Error::not_found(format!("Urls {} not found", code)));
     }
-    Ok(Json(serde_json::json!({ "deleted": id })))
+    Ok(Json(serde_json::json!({ "deleted": code })))
 }
