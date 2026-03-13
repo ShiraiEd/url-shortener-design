@@ -58,7 +58,7 @@ pub async fn create_urls(db: Db, body: Validated<Json<CreateUrls>>) -> Result<Js
         created_at: Set(rapina::sea_orm::prelude::DateTimeUtc::from(std::time::SystemTime::now() + std::time::Duration::from_secs(9 * 3600))),
         expires_at: Set(input.expires_at
             .and_then(|s| s.parse::<rapina::sea_orm::prelude::DateTimeUtc>().ok())
-            .unwrap_or_else(|| rapina::sea_orm::prelude::DateTimeUtc::from(std::time::SystemTime::now() + std::time::Duration::from_hours(24 * 365)))),
+            .unwrap_or_else(|| rapina::sea_orm::prelude::DateTimeUtc::from(std::time::SystemTime::now() + std::time::Duration::from_secs(24 * 365 * 3600)))),
         click_count: Set(0),
         ..Default::default()
     };
