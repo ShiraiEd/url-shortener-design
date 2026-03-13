@@ -7,25 +7,20 @@ mod tests {
     use rapina::testing::TestClient;
 
     use crate::migrations;
-    use crate::urlss::handlers::{create_urls, delete_code, list_urlss, redirect};
 
-    async fn setup() -> TestClient {
-        let router = Router::new()
-            .get("/api/v1/shorten", list_urlss)
-            .post("/api/v1/shorten", create_urls)
-            .get("/api/v1/shorten/:short_code", redirect)
-            .delete("/api/v1/shorten/:short_code", delete_code);
-
-        let app = Rapina::new()
+    async fn db() -> Rapina {
+        Rapina::new()
             .with_database(DatabaseConfig::new("sqlite::memory:"))
             .await
             .unwrap()
             .run_migrations::<migrations::Migrator>()
             .await
             .unwrap()
-            .router(router);
+            .discover()
+    }
 
-        TestClient::new(app).await
+    async fn setup() -> TestClient {
+        TestClient::new(db().await).await
     }
 
     async fn create_url(client: &TestClient, long_url: &str) -> String {
@@ -183,12 +178,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_rate_limit() {
-        let router = Router::new()
-            .get("/api/v1/shorten", list_urlss)
-            .post("/api/v1/shorten", create_urls)
-            .get("/api/v1/shorten/:short_code", redirect)
-            .delete("/api/v1/shorten/:short_code", delete_code);
-
         let app = Rapina::new()
             .with_rate_limit(RateLimitConfig::per_minute(5))
             .with_database(DatabaseConfig::new("sqlite::memory:"))
@@ -197,8 +186,7 @@ mod tests {
             .run_migrations::<migrations::Migrator>()
             .await
             .unwrap()
-            .router(router);
-
+            .discover();
         let client = TestClient::new(app).await;
 
         for _ in 0..5 {
@@ -210,63 +198,58 @@ mod tests {
         assert_eq!(res.status(), StatusCode::TOO_MANY_REQUESTS);
     }
 
-    #[tokio::test]
-    async fn test_cache_miss_then_hit() {
-        let router = Router::new()
-            .get("/api/v1/shorten", list_urlss)
-            .post("/api/v1/shorten", create_urls)
-            .get("/api/v1/shorten/:short_code", redirect)
-            .delete("/api/v1/shorten/:short_code", delete_code);
-
+    async fn setup_with_cache() -> TestClient {
         let app = Rapina::new()
-            .with_cache(CacheConfig::in_memory(100)).await.unwrap()
+            .with_cache(CacheConfig::in_memory(100))
+            .await
+            .unwrap()
             .with_database(DatabaseConfig::new("sqlite::memory:"))
             .await
             .unwrap()
             .run_migrations::<migrations::Migrator>()
             .await
             .unwrap()
-            .router(router);
+            .discover();
+        TestClient::new(app).await
+    }
 
-        let client = TestClient::new(app).await;
+    #[tokio::test]
+    async fn test_cache_miss_then_hit() {
+        let client = setup_with_cache().await;
         let code = create_url(&client, "https://www.example.com").await;
 
-        let first = client.get(&format!("/api/v1/shorten/{}", code)).send().await;
+        let first = client
+            .get(&format!("/api/v1/shorten/{}", code))
+            .send()
+            .await;
         assert_eq!(first.headers().get("x-cache").unwrap(), "MISS");
 
-        let second = client.get(&format!("/api/v1/shorten/{}", code)).send().await;
+        let second = client
+            .get(&format!("/api/v1/shorten/{}", code))
+            .send()
+            .await;
         assert_eq!(second.headers().get("x-cache").unwrap(), "HIT");
     }
 
     #[tokio::test]
     async fn test_cache_invalidated_on_delete() {
-        let router = Router::new()
-            .get("/api/v1/shorten", list_urlss)
-            .post("/api/v1/shorten", create_urls)
-            .get("/api/v1/shorten/:short_code", redirect)
-            .delete("/api/v1/shorten/:short_code", delete_code);
-
-        let app = Rapina::new()
-            .with_cache(CacheConfig::in_memory(100)).await.unwrap()
-            .with_database(DatabaseConfig::new("sqlite::memory:"))
-            .await
-            .unwrap()
-            .run_migrations::<migrations::Migrator>()
-            .await
-            .unwrap()
-            .router(router);
-
-        let client = TestClient::new(app).await;
+        let client = setup_with_cache().await;
         let code = create_url(&client, "https://www.example.com").await;
 
-        // Popula o cache
-        client.get(&format!("/api/v1/shorten/{}", code)).send().await;
+        client
+            .get(&format!("/api/v1/shorten/{}", code))
+            .send()
+            .await;
 
-        // Deleta — deve invalidar o cache
-        client.delete(&format!("/api/v1/shorten/{}", code)).send().await;
+        client
+            .delete(&format!("/api/v1/shorten/{}", code))
+            .send()
+            .await;
 
-        // Próxima chamada deve ser MISS (ou 404)
-        let res = client.get(&format!("/api/v1/shorten/{}", code)).send().await;
+        let res = client
+            .get(&format!("/api/v1/shorten/{}", code))
+            .send()
+            .await;
         assert_eq!(res.status(), StatusCode::NOT_FOUND);
     }
 }
