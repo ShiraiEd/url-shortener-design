@@ -7,7 +7,7 @@ use rapina::schemars;
 
 pub mod entity;
 pub mod migrations;
-pub mod urlss;
+pub mod urls;
 
 #[derive(Clone, Config)]
 pub struct AppConfig {
