@@ -19,6 +19,7 @@ pub async fn list_urlss(db: Db) -> Result<Json<Vec<Model>>> {
 
 #[get("/:code", group = "/api/v1/shorten")]
 #[public]
+#[cache(ttl = 300)]
 #[errors(UrlsError)]
 pub async fn redirect(db: Db, code: Path<String>) -> Result<http::Response<BoxBody>> {
     let code = code.into_inner();
@@ -29,12 +30,17 @@ pub async fn redirect(db: Db, code: Path<String>) -> Result<http::Response<BoxBo
         .map_err(DbError)?
         .ok_or_else(|| Error::not_found(format!("URL with code '{}' not found", code)))?;
 
+    let now = rapina::sea_orm::prelude::DateTimeUtc::from(std::time::SystemTime::now());
+    if item.expires_at < now {
+        return Err(Error::new(410, "GONE", format!("URL '{}' has expired", code)));
+    }
+
     let mut active: ActiveModel = item.clone().into_active_model();
     active.click_count = Set(item.click_count + 1);
     let _ = active.update(db.conn()).await.map_err(DbError)?;
 
     let response = http::Response::builder()
-        .status(http::StatusCode::MOVED_PERMANENTLY)
+        .status(http::StatusCode::from_u16(302).unwrap())
         .header("Location", &item.long_url)
         .body(BoxBody::default())
         .unwrap();
@@ -50,7 +56,9 @@ pub async fn create_urls(db: Db, body: Validated<Json<CreateUrls>>) -> Result<Js
         short_code: Set(String::new()),
         long_url: Set(input.long_url),
         created_at: Set(rapina::sea_orm::prelude::DateTimeUtc::from(std::time::SystemTime::now() + std::time::Duration::from_secs(9 * 3600))),
-        expires_at: Set(rapina::sea_orm::prelude::DateTimeUtc::from(std::time::SystemTime::now() + std::time::Duration::from_hours(24 * 365))),
+        expires_at: Set(input.expires_at
+            .and_then(|s| s.parse::<rapina::sea_orm::prelude::DateTimeUtc>().ok())
+            .unwrap_or_else(|| rapina::sea_orm::prelude::DateTimeUtc::from(std::time::SystemTime::now() + std::time::Duration::from_hours(24 * 365)))),
         click_count: Set(0),
         ..Default::default()
     };
@@ -62,9 +70,8 @@ pub async fn create_urls(db: Db, body: Validated<Json<CreateUrls>>) -> Result<Js
     Ok(Json(serde_json::json!({"short_code": result.short_code, "long_url": result.long_url})))
 }
 
-
-#[delete("/:short_code", group = "/api/v1/shorten")]
 #[public]
+#[delete("/:short_code", group = "/api/v1/shorten")]
 #[errors(UrlsError)]
 pub async fn delete_code(db: Db, code: Path<String>) -> Result<Json<serde_json::Value>> {
     let code = code.into_inner();

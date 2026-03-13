@@ -1,3 +1,4 @@
+use rapina::cache::CacheConfig;
 use rapina::database::DatabaseConfig;
 use rapina::middleware::RequestLogMiddleware;
 use rapina::prelude::*;
@@ -47,6 +48,8 @@ async fn main() -> std::io::Result<()> {
 
     Rapina::new()
         .with_tracing(TracingConfig::new())
+        .with_rate_limit(RateLimitConfig::per_minute(60))
+        .with_cache(CacheConfig::in_memory(10_000)).await?
         .middleware(RequestLogMiddleware::new())
         .with_database(DatabaseConfig::new("sqlite://urls.db?mode=rwc"))
         .await?

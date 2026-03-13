@@ -6,5 +6,6 @@ use serde::Deserialize;
 pub struct CreateUrls {
     #[validate(url)]
     pub long_url: String,
+    pub expires_at: Option<String>,
 }
 

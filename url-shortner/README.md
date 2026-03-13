@@ -37,6 +37,7 @@ Maybe there is a more efficient way to do this.
 - `GET /api/v1/shorten` — List all shortened URLs (requires auth)
 - `POST /api/v1/shorten` — Create a new shortened URL (public)
 - `GET /api/v1/shorten/:code` — Redirect to the original URL (public)
+- `DELETE /api/v1/shorten/:code` — Delete a shortened URL 
 
 ## Implementation notes
 
@@ -80,3 +81,4 @@ Urls::find()
     .one(db.conn())
     .await
 ```
+### Switch to 302 for click tracking

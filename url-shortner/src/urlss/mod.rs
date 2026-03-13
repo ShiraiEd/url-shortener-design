@@ -1,3 +1,4 @@
 pub mod dto;
 pub mod error;
 pub mod handlers;
+mod tests;
