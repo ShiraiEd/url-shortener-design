@@ -10,8 +10,8 @@ A high-throughput URL shortening service. Converts long URLs into short codes an
 
 ## how to run
 
-1 -```cd``` into url-shortner
-2 -```rapina dev``` to ru the localserver
+1 -```cd``` into url-shortner and ```cp .env.example .env```
+2 -```rapina dev``` to run the localserver
 3 -open another terminal
 4 -use ```curl``` to interact with the api
 
@@ -29,5 +29,5 @@ examples :
 ## What is missing
 
 - for the next versions, I Think it needs a login an verification,
-- the databases changes mentioned above,
-- maybe a frontend UI for the login page, and one to use the api without curl 
+- maybe a frontend UI for the login page, and one to use the api without curl
+- Shortcode Encryption
