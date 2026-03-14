@@ -6,14 +6,15 @@ A high-throughput URL shortening service. Converts long URLs into short codes an
 
 - **Rapina** — Is simple and comes with all the rust benefits
 - **In-memory-cache** — caches hot path GET:short_code
-- **Sqlite** — Simpler for the V1
+- **Sqlite** — Simpler for the V1 dev
+- **Postgres** — for production
 
 ## how to run
 
-1 -```cd``` into url-shortner and ```cp .env.example .env```
-2 -```rapina dev``` to run the localserver
-3 -open another terminal
-4 -use ```curl``` to interact with the api
+1- ```cd``` into url-shortner, ```cp .env.example .env``` to create a local env file
+2- ```docker-compose up --build``` to run simulating a production environment
+3- detach from the terminal with ```d```
+4- use ```curl``` to interact with the api
 
 examples :
 - **Create shortcode** -> ```curl -X POST http://localhost:3000/api/v1/shorten   -H "Content-Type: application/json"   -d '{"long_url": "https://userapina.com/"}'```
@@ -24,7 +25,7 @@ examples :
 ## Implementation decisions
 
 - 302 instead of 301 for click-counting
-- For v1 still don't think that Postgres or Redis is needed, for now Sqlite and in-memory-cache works just fine
+- For v1 still don't think that Redis is needed, for now Sqlite and in-memory-cache works just fine for development
 
 ## What is missing
 
